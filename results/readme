@@ -1,1 +1,2 @@
-This folder contains lists of differentially expressed markers & common markers
+This folder contains lists of differentially expressed markers & results objects for 
+tcga and single cell (NC which stands for normal-cancer) data.
