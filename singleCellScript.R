@@ -1,35 +1,33 @@
+# Used the Seurat pipeline (link: https://satijalab.org/seurat/articles/pbmc3k_tutorial.html#finding-differentially-expressed-features-cluster-biomarkers)
 library(Seurat)
-library(Matrix)
-library(magrittr)
-library(dplyr)
-library(matrixStats)
 
+# single cell data comes from BC atlas (link: https://singlecell.broadinstitute.org/single_cell/study/SCP1039/a-single-cell-and-spatially-resolved-atlas-of-human-breast-cancers#study-summary)
+# GEO code: GSE176078 
+# I logged into the single cell portal (previous BC atlas link) and downloaded data there
+# I downloaded matrix, barcodes, and features & uncompressed files via terminal (MacOS) beforehand
+# Also downloaded the csv file of the atlas so I could get cell type data
 
-# Load the matrix (used readMM because I'm not sure how many lines to skip with read.table)
-matrix <- readMM("data/matrix.mtx")
-matrix
-head(matrix)
-saveRDS(matrix, file = "data/matrix.rds")
+# Load single-cell matrix (saved the matrix as a .rds object beforehand because it took a while to load it otherwise)
 matrix <- readRDS("data/matrix.rds")
 head(matrix)
 
-# Load in features and barcodes
+# Load in features and barcodes 
 barcodes <- read.table("data/barcodes.tsv", header = FALSE)
 features <- read.table("data/features.tsv", header = FALSE)
 dim(barcodes)
 dim(features)
 
-# The matrix we read doesn't have column or row names,so..
+# The matrix we read doesn't have column or row names
 # We need to assign barcodes to columns (cells) and features to rows (genes)
 
-# First, let's check the dimensions of our objects
+# Checking the dimensions of objects
 dim(matrix)
 dim(features)
 dim(barcodes)
 
-# The matrix number of columns match the barcodes, so that's good
+# The matrix number of columns match the barcodes
 # The matrix number of rows match the features (gene names), BUT we have too many columns in the features frame
-# Let's check those out
+# Check those
 features
 
 # The features frame has 2 seemingly identical columns, but I'm gonna keep them in because I don't know if they're identical everywhere, since it is a long list
@@ -45,21 +43,6 @@ dim(matrix)
 # Create the seurat object
 seurat_object <- CreateSeuratObject(counts = matrix, project = "bc_atlas")
 seurat_object
-
-# Define gene variance
-#seurat_object@assays$RNA@counts
-
-#gene_variance <- numeric(nrow(seurat_object))
-
-# Calculate variance of genes
-#for (i in 1:nrow(seurat_object)) {
-#  gene_variance[i] <- var(seurat_object@assays$RNA@counts[i, ])
-#}
-
-#tail(gene_variance)
-
-# Subset
-#seurat_object <- seurat_object[, gene_variance >= 0.5]
 
 # Checking the name, number, and order of cells 
 head(seurat_object)
@@ -100,8 +83,6 @@ plot1
 plot2
 
 # Subset filtering (first to only normal and cancer cells, then get rid of low expression cells)
-# seurat_object <- subset(seurat_object, subset = celltype_major == c("Normal Epithelial", "Cancer Epithelial"))
-
 Idents(seurat_object) <- "celltype_major"
 Idents(seurat_object)
 seurat_object@meta.data
@@ -111,7 +92,6 @@ seurat_object <- subset(seurat_object, idents = cells_to_keep)
 tail(seurat_object, 200)
 
 seurat_object <- subset(seurat_object, subset = nFeature_RNA > 200 & nFeature_RNA < 2500 & percent.mt < 5)
-
 
 # Check if we only have normal or cancer cells now
 head(seurat_object, 200)
@@ -158,7 +138,6 @@ DimPlot(seurat_object, reduction = "pca")
 DimHeatmap(seurat_object, dims = 1, cells = 500, balanced = TRUE)
 DimHeatmap(seurat_object, dims = 1:15, cells = 500, balanced = TRUE)
 
-
 # Using p values with jackstrawplot
 seurat_object <- JackStraw(seurat_object, num.replicate = 100)
 seurat_object <- ScoreJackStraw(seurat_object, dims = 1:20)
@@ -181,10 +160,11 @@ DimPlot(seurat_object, reduction = "umap", group.by = "orig.ident")
 DimPlot(seurat_object, reduction = "umap", group.by = "celltype_major")
 
 DimPlot(seurat_object, group.by="seurat_clusters")
-seurat_object$
-
-
 seurat_object$seurat_clusters
+
+# Most of previous steps were for clustering & making the umaps
+
+# Save processed seurat_object
 saveRDS(seurat_object, file = "data/NC_seurat_object.rds")
 test <- readRDS("data/NC_seurat_object.rds")
 head(test@meta.data)
@@ -193,6 +173,7 @@ head(seurat_object)
 head(seurat_object@meta.data)
 unique(test$celltype_major)
 
+# Finding differentially expressed markers
 library(Seurat)
 seurat_object <- readRDS("data/NC_seurat_object.rds")
 #bc_markers <- FindAllMarkers(seurat_object, logfc.threshold = 0)
@@ -201,56 +182,54 @@ seurat_object <- readRDS("data/NC_seurat_object.rds")
 markers <- FindMarkers(seurat_object, group.by = "celltype_major", ident.1 = "Normal Epithelial", ident.2 = "Cancer Epithelial", logfc.threshold = 0)
 head(markers)
 
-hh <- FindMarkers(test, group.by = "celltype_major", ident.1 = "Normal Epithelial", ident.2 = "Cancer Epithelial", logfc.threshold = 0)
-head(hh)
-
 # CAFs vs. Cancer
-markers <- FindMarkers(seurat_object, group.by = "celltype_major", ident.1 = "CAFs", ident.2 = "Cancer Epithelial", logfc.threshold = 0)
-head(markers)
+# markers <- FindMarkers(seurat_object, group.by = "celltype_major", ident.1 = "CAFs", ident.2 = "Cancer Epithelial", logfc.threshold = 0)
+# head(markers)
 
 # Normal and CAFs vs. Cancer
-markers <- FindMarkers(seurat_object, group.by = "celltype_major", ident.1 = c("Normal Epithelial", "CAFs"), ident.2 = "Cancer Epithelial", logfc.threshold = 0)
-head(markers)
+# markers <- FindMarkers(seurat_object, group.by = "celltype_major", ident.1 = c("Normal Epithelial", "CAFs"), ident.2 = "Cancer Epithelial", logfc.threshold = 0)
+# head(markers)
 
+# Save markers as rds object
 saveRDS(markers, file = "data/NC_markers.rds")
-testm <- readRDS("data/NC_markers.rds")
-head(testm)
 
-saveRDS(seurat_object, file = "data/ssNC_seurat_object.rds")
-test <- readRDS("data/ssNC_seurat_object.rds")
-test
-
-#saveRDS(bc_markers, file = "data/markers.rds")
-#markers <- readRDS("data/markers.rds")
-#head(markers)
-
+# Plotting the log2fc against pval 
 plot(markers$avg_log2FC, -log10(markers$p_val))
 plot(de$avg_log2FC, -log10(de$p_val))
 head(de)
 
-## Plotting
-
+# Making a dataframe from the markers
 de <- readRDS(file = "data/NC_markers.rds")
+
+# Remove markers with p-vals of 0
 de <- de[de$p_val != 0, ]
+
+# Create a new column called diffexpressed and assign "NO" to all markers (i.e. not differentially expressed, which we'll change in a sec)
 de$diffexpressed <- "NO"
 head(de)
 
+# Plot to see the range
 plot(de$avg_log2FC, -log10(de$p_val))
 range(de$p_val)
 
-
-# if log2Foldchange > 2.5 and pvalue < 0.05, set as "UP" 
+# if log2Foldchange > 2.5 and pvalue < 0.05, set as "UP" for upregulated
 de$diffexpressed[de$avg_log2FC > 0.5 & de$p_val_adj < 0.05] <- "UP"
-# if log2Foldchange < -2.5 and pvalue < 0.05, set as "DOWN"
+# if log2Foldchange < -2.5 and pvalue < 0.05, set as "DOWN" for downregulated
 de$diffexpressed[de$avg_log2FC < -0.5 & de$p_val_adj < 0.05] <- "DOWN"
+
+# Add column for labels (gonna use this for ggplot labels, this column is just gonna be the gene names but only present for diffexpressed)
 de$delabel <- NA
-#de <- subset(de, -log10(de$p_val) < 400)
+
+# Add column for genes (genes are the rownames but it was a pain filtering using rownames)
 de$gene <- rownames(de)
 head(de)
+
+# Only add labels (gene names) for the differentially expressed markers, in other words if diffexpressed = 0 there won't be a label in ggplot
 de$delabel[de$diffexpressed != "NO"] <- de$gene[de$diffexpressed != "NO"]
 head(de)
 tail(de)
 
+# plot with colours & labels using ggplot2
 library(ggplot2)
 library(ggrepel)
 ggplot(de, aes(x = avg_log2FC, y = -log10(p_val_adj), col=diffexpressed, label=delabel)) +
@@ -264,7 +243,7 @@ ggplot(de, aes(x = avg_log2FC, y = -log10(p_val_adj), col=diffexpressed, label=d
   geom_text_repel() +
   ylim(0,400)
 
-head(de, 100)
+# Save the data frame for plotting
 saveRDS(de, file = "data/NC_complete_markers.rds")
 test <- readRDS("data/NC_complete_markers.rds")
 head(test)
@@ -272,10 +251,8 @@ plot(test$avg_log2FC, -log10(test$p_val))
 plot(test$avg_log2FC, -log10(test$p_val_adj))
 head(test)
 
-
 # Dataset stats
 unique(seurat_object$celltype_major)
-
 normal_counts <- table(seurat_object$celltype_major)["Normal Epithelial"]
 cancer_counts <- table(seurat_object$celltype_major)["Cancer Epithelial"]
 cafs <- table(seurat_object$celltype_major)["CAFs"]
@@ -287,7 +264,6 @@ print(cafs)
 
 nrow(seurat_object)
 tail(seurat_object)
-
 
 normal_counts <- table(sub$celltype_major)["Normal Epithelial"]
 cancer_counts <- table(sub$celltype_major)["Cancer Epithelial"]
@@ -305,12 +281,11 @@ print(down_count)
 up_count <- table(markers$diffexpressed)["UP"]
 print(up_count)
 
-# Extract downregulated
+# Extract downregulated list of markers
 nc_down <- markers[markers$diffexpressed == "DOWN", ]
 nc_down_markers <- rownames(nc_down)
 
-
-# Extract upregulated
+# Extract upregulated list of markers
 nc_up <- markers[markers$diffexpressed == "UP", ]
 nc_up_markers <- rownames(nc_up)
 
@@ -323,7 +298,3 @@ down <- readRDS("markers/nc_down_markers.rds")
 up <- readRDS("markers/nc_up_markers.rds") 
 down
 up
-### NOTE!!! REMEMBER TO CHANGE THE P-VAL CUTOFF FOR THE MARKERS OBJECT!!
-
-
-
